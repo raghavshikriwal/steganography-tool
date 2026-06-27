@@ -19,4 +19,4 @@ Hide and reveal secret messages inside images using LSB (Least Significant Bit) 
 HTML | CSS | JavaScript
 
 ## Live Demo
-[Click here](YOUR_GITHUB_PAGES_LINK)
+[Click here](https://raghavshikriwal.github.io/steganography-tool/)
