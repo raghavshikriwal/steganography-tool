@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Steganography Tool</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #0f0f1a; color: white; min-height: 100vh; padding: 20px; }
+        h1 { text-align: center; color: #00d4ff; margin-bottom: 5px; font-size: 28px; }
+        .subtitle { text-align: center; color: #888; margin-bottom: 30px; font-size: 14px; }
+        .container { max-width: 700px; margin: 0 auto; }
+        .tabs { display: flex; margin-bottom: 20px; border-radius: 8px; overflow: hidden; }
+        .tab { flex: 1; padding: 12px; text-align: center; cursor: pointer; background: #1a1a2e; font-size: 15px; transition: 0.3s; }
+        .tab.active { background: #00d4ff; color: #0f0f1a; font-weight: bold; }
+        .panel { background: #1a1a2e; border-radius: 12px; padding: 25px; display: none; }
+        .panel.active { display: block; }
+        .upload-area { border: 2px dashed #00d4ff; border-radius: 10px; padding: 30px; text-align: center; cursor: pointer; margin-bottom: 20px; transition: 0.3s; }
+        .upload-area:hover { background: #00d4ff22; }
+        .upload-area input { display: none; }
+        .preview { max-width: 100%; max-height: 200px; border-radius: 8px; margin-top: 10px; display: none; }
+        textarea { width: 100%; padding: 12px; background: #0f0f1a; border: 1px solid #333; border-radius: 8px; color: white; font-size: 14px; resize: vertical; margin-bottom: 15px; }
+        input[type="password"] { width: 100%; padding: 12px; background: #0f0f1a; border: 1px solid #333; border-radius: 8px; color: white; font-size: 14px; margin-bottom: 15px; }
+        label { display: block; margin-bottom: 6px; color: #aaa; font-size: 13px; }
+        button { width: 100%; padding: 14px; background: #00d4ff; color: #0f0f1a; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        button:hover { background: #00aacc; }
+        .result { margin-top: 20px; padding: 15px; background: #0f0f1a; border-radius: 8px; display: none; }
+        .result.success { border-left: 4px solid #00ff88; }
+        .result.error { border-left: 4px solid #ff4444; }
+        .result p { color: #aaa; font-size: 13px; margin-bottom: 8px; }
+        .result strong { color: white; word-break: break-all; }
+        .download-btn { margin-top: 12px; background: #00ff88; color: #0f0f1a; }
+        .download-btn:hover { background: #00cc66; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Steganography Tool</h1>
+        <p class="subtitle">Hide secret messages inside images</p>
+
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('hide')">🔒 Hide Message</div>
+            <div class="tab" onclick="switchTab('reveal')">🔓 Reveal Message</div>
+        </div>
+
+        <!-- HIDE PANEL -->
+        <div class="panel active" id="hidePanel">
+            <label>Upload Image</label>
+            <div class="upload-area" onclick="document.getElementById('hideImg').click()">
+                <p>📁 Tap to select image (PNG recommended)</p>
+                <input type="file" id="hideImg" accept="image/*" onchange="previewImage(this, 'hidePreview')">
+                <img id="hidePreview" class="preview">
+            </div>
+
+            <label>Secret Message</label>
+            <textarea id="secretMsg" rows="4" placeholder="Enter your secret message here..."></textarea>
+
+            <label>Password (optional)</label>
+            <input type="password" id="hidePass" placeholder="Add a password for extra security">
+
+            <button onclick="hideMessage()">🔒 Hide Message in Image</button>
+
+            <div class="result" id="hideResult">
+                <p>✅ Message hidden successfully!</p>
+                <button class="download-btn" id="downloadBtn">⬇️ Download Image</button>
+            </div>
+        </div>
+
+        <!-- REVEAL PANEL -->
+        <div class="panel" id="revealPanel">
+            <label>Upload Image with Hidden Message</label>
+            <div class="upload-area" onclick="document.getElementById('revealImg').click()">
+                <p>📁 Tap to select image</p>
+                <input type="file" id="revealImg" accept="image/*" onchange="previewImage(this, 'revealPreview')">
+                <img id="revealPreview" class="preview">
+            </div>
+
+            <label>Password (if used while hiding)</label>
+            <input type="password" id="revealPass" placeholder="Enter password if message was encrypted">
+
+            <button onclick="revealMessage()">🔓 Reveal Hidden Message</button>
+
+            <div class="result" id="revealResult">
+                <p>Hidden message:</p>
+                <strong id="revealedMsg"></strong>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let hiddenCanvas = null;
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach((t, i) => {
+                t.classList.toggle('active', (tab === 'hide' && i === 0) || (tab === 'reveal' && i === 1));
+            });
+            document.getElementById('hidePanel').classList.toggle('active', tab === 'hide');
+            document.getElementById('revealPanel').classList.toggle('active', tab === 'reveal');
+        }
+
+        function previewImage(input, previewId) {
+            const file = input.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = e => {
+                const preview = document.getElementById(previewId);
+                preview.src = e.target.result;
+                preview.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function textToBits(text) {
+            return text.split('').map(c => c.charCodeAt(0).toString(2).padStart(8, '0')).join('');
+        }
+
+        function bitsToText(bits) {
+            let text = '';
+            for (let i = 0; i < bits.length; i += 8) {
+                text += String.fromCharCode(parseInt(bits.slice(i, i + 8), 2));
+            }
+            return text;
+        }
+
+        function hideMessage() {
+            const file = document.getElementById('hideImg').files[0];
+            const msg = document.getElementById('secretMsg').value;
+            const pass = document.getElementById('hidePass').value;
+
+            if (!file) return alert('Please select an image!');
+            if (!msg) return alert('Please enter a message!');
+
+            const finalMsg = pass ? `[PASS:${pass}]${msg}` : msg;
+            const bits = textToBits(finalMsg + '\0');
+
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+                if (bits.length > data.data.length) return alert('Image too small for this message!');
+
+                for (let i = 0; i < bits.length; i++) {
+                    data.data[i] = (data.data[i] & 0xFE) | parseInt(bits[i]);
+                }
+
+                ctx.putImageData(data, 0, 0);
+                hiddenCanvas = canvas;
+
+                const result = document.getElementById('hideResult');
+                result.style.display = 'block';
+                result.className = 'result success';
+
+                document.getElementById('downloadBtn').onclick = () => {
+                    const a = document.createElement('a');
+                    a.download = 'hidden_message.png';
+                    a.href = canvas.toDataURL('image/png');
+                    a.click();
+                };
+            };
+            img.src = URL.createObjectURL(file);
+        }
+
+        function revealMessage() {
+            const file = document.getElementById('revealImg').files[0];
+            const pass = document.getElementById('revealPass').value;
+
+            if (!file) return alert('Please select an image!');
+
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+                let bits = '';
+                for (let i = 0; i < data.data.length; i++) {
+                    bits += (data.data[i] & 1).toString();
+                }
+
+                let msg = '';
+                for (let i = 0; i < bits.length; i += 8) {
+                    const char = String.fromCharCode(parseInt(bits.slice(i, i + 8), 2));
+                    if (char === '\0') break;
+                    msg += char;
+                }
+
+                const result = document.getElementById('revealResult');
+                result.style.display = 'block';
+
+                if (msg.startsWith('[PASS:')) {
+                    const endIdx = msg.indexOf(']');
+                    const storedPass = msg.slice(6, endIdx);
+                    if (pass !== storedPass) {
+                        result.className = 'result error';
+                        document.getElementById('revealedMsg').textContent = '❌ Wrong password!';
+                        return;
+                    }
+                    msg = msg.slice(endIdx + 1);
+                }
+
+                result.className = 'result success';
+                document.getElementById('revealedMsg').textContent = msg || '❌ No hidden message found!';
+            };
+            img.src = URL.createObjectURL(file);
+        }
+    </script>
+</body>
+</html>
